@@ -51,16 +51,25 @@ namespace NetWorld
         }
     }
 
-    public class MyNetWorker : NetWorker
+    public class MyUdpNetWorker
     {
-        private int _port;
-        private byte[] _cacheBuffer;
-        private Socket _sock;
-        private readonly Thread _thread;
+        private static readonly Dictionary<int, SocketWrap> Sockets = new Dictionary<int, SocketWrap>();
 
-        private int ServerProcessor(string message, EndPoint remote)
+        //接收消息的处理函数
+        private int ServerProcessor(string method, string param, EndPoint remote)
         {
-            switch (message)
+            switch (method)
+            {
+                case "show":
+                    Console.WriteLine(param);
+                    break;
+            }
+            return 0;
+        }
+
+        private int ClientProcessor(string method, string param, EndPoint remote)
+        {
+            switch (method)
             {
                 case "quit":
                     return -1;
@@ -68,9 +77,65 @@ namespace NetWorld
             return 0;
         }
 
-        private int ClientProcessor(string message, EndPoint remote)
+        public SocketWrap CreateSocketWrap(int port)
         {
-            switch (message)
+            if (Sockets.ContainsKey(port))
+            {
+                return Sockets[port];
+            }
+            var socketwrap = new SocketWrap(port, port);
+            Sockets.Add(port, socketwrap);
+            return socketwrap;
+        }
+
+        public void CreateReceWorker(int port)
+        {
+            //得到本机IP，设置UDP端口号
+            var socketwrap = CreateSocketWrap(port);
+
+            CreateReceWorker(socketwrap);
+        }
+
+        public void CreateReceWorker(SocketWrap client)
+        {
+            Thread t = new Thread(ReceMsgWorker);
+            t.Start(client);
+        }
+
+        private void ReceMsgWorker(object client)
+        {
+            var socket = (SocketWrap)client;
+            try
+            {
+                string message = "";
+                for (; ; )
+                {
+                    //接收信息
+                    var remote = socket.ReceiveFrom(ref message);
+
+                    //处理信息
+                    if (ProcessMessage(message, remote) == -1) return;
+                    
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write(ex.Message);
+            }
+            finally
+            {
+                socket.Socket.Close();
+            }
+        }
+
+        public int ProcessMessage(string message, EndPoint remote)
+        {
+            var arr = message.Split(':');
+            if (arr.Count() != 2) return 0;
+
+            if (ServerProcessor(arr[0], arr[1], remote) == -1) return -1;
+            if (ClientProcessor(arr[0], arr[1], remote) == -1) return -1;
+            switch (arr[0])
             {
                 case "quit":
                     return -1;
@@ -78,75 +143,131 @@ namespace NetWorld
             return 0;
         }
 
-        public override int ProcessMessage(string message, EndPoint remote)
+        public void CreateSendWorker(int fromport, string ip, int port, string sendmessage, int timeTicker = 1000)
         {
-            if (ServerProcessor(message, remote) == -1) return -1;
-            if (ClientProcessor(message, remote) == -1) return -1;
-            switch (message)
+            var from = CreateSocketWrap(fromport);
+
+            var swp = new SendWorkerParams(from, ip, port, sendmessage, timeTicker);
+            Thread t = new Thread(SendWorker);
+            t.Priority = ThreadPriority.Lowest;
+            t.Start(swp);
+        }
+
+        public void CreateSendWorker(SocketWrap from, string ip, int port, string sendmessage, int timeTicker = 1000)
+        {
+            var swp = new SendWorkerParams(from, ip, port, sendmessage, timeTicker);
+            Thread t = new Thread(SendWorker);
+            t.Priority = ThreadPriority.Lowest;
+            t.Start(swp);
+        }
+
+        public class SendWorkerParams
+        {
+            public SocketWrap From;
+            public EndPoint To;
+            public int TimeTicker;
+            public string Sendmessage;
+
+            public SendWorkerParams(SocketWrap from, string ip, int port, string sendmessage, int timeTicker = 1000)
             {
-                case "quit":
-                    return -1;
+                From = from;
+                To = new IPEndPoint(IPAddress.Parse(ip), port);
+                TimeTicker = timeTicker;
+                Sendmessage = sendmessage;
             }
-            return 0;
         }
 
-        public MyNetWorker(int port = 10000)
+        //不停发送一个信息
+        public void SendWorker(object swpobj)
         {
-            _port = port;
-            _thread = new Thread(Main) { IsBackground = true };
+            var swp = (SendWorkerParams)swpobj;
+            var timeTicker = swp.TimeTicker;
+            var endPoint = swp.To;
+            var sendmessage = swp.Sendmessage;
+            var socketWrap = swp.From;
+
+            try
+            {
+                for (; ; )
+                {
+                    socketWrap.SendTo(sendmessage, endPoint);
+                    Thread.Sleep(timeTicker);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write(ex.Message);
+            }
+            finally
+            {
+                socketWrap.Socket.Close();
+            }
         }
 
-        public void Run()
+        public class SocketWrap
         {
-            if (IsRuning()) return;
-            _thread.Start();
-        }
+            public int Index;
+            public Socket Socket;
 
-        public bool IsRuning()
-        {
-            return _thread.IsAlive;
-        }
+            public SocketWrap(int port, int index)
+            {
+                var ipep = new IPEndPoint(IPAddress.Any, port);
+                var sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+                sock.Bind(ipep);
 
-        public override EndPoint ReceiveFrom(ref string message)
-        {
-            IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-            EndPoint remote = sender;
-            var recv = _sock.ReceiveFrom(_cacheBuffer, ref remote);
-            message = DefaultEncoding.GetString(_cacheBuffer, 0, recv);
-            return remote;
-        }
+                Socket = sock;
+                Index = index;
+            }
 
-        public override void Init()
-        {
-            InitSocket();
-        }
+            public SocketWrap(Socket socket, int index)
+            {
+                Socket = socket;
+                this.Index = index;
+            }
 
-        private void InitSocket()
-        {
-            //得到本机IP，设置TCP端口号         
-            var ipep = new IPEndPoint(IPAddress.Any, _port);
-            _sock = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+            public EndPoint ReceiveFrom(ref string message)
+            {
+                byte[] cacheBuffer = new byte[1024];
+                IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+                EndPoint remote = sender;
+                var recv = Socket.ReceiveFrom(cacheBuffer, ref remote);
+                message = DefaultEncoding.GetString(cacheBuffer, 0, recv);
+                return remote;
+            }
 
-            //绑定网络地址
-            _sock.Bind(ipep);
-        }
+            public void SendTo(string message, EndPoint remote)
+            {
+                byte[] cacheBuffer = DefaultEncoding.GetBytes(message);
+                //发送信息
+                Socket.SendTo(cacheBuffer, cacheBuffer.Length, SocketFlags.None, remote);
+            }
 
-        public override void SendTo(string message, EndPoint remote)
-        {
-            _cacheBuffer = DefaultEncoding.GetBytes(message);
-            //发送信息
-            _sock.SendTo(_cacheBuffer, _cacheBuffer.Length, SocketFlags.None, remote);
-        }
-
-        private static Encoding DefaultEncoding
-        {
-            get { return Encoding.UTF8; }
+            private static Encoding DefaultEncoding
+            {
+                get { return Encoding.UTF8; }
+            }
         }
     }
+
+    public class Log
+    {
+        public static void Write(string msg)
+        {
+            Console.WriteLine(msg);
+        }
+    }
+
     class Program
     {
         static void Main(string[] args)
         {
+            var nw = new MyUdpNetWorker();
+
+//            nw.CreateReceWorker(10000);
+
+//            nw.CreateSendWorker(10000, "121.40.208.105", 10000, "show:hello");
+
+            Thread.Sleep(100000000);
         }
     }
 }
