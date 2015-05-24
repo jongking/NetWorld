@@ -2,3 +2,8 @@ F:\GitHub\NetWorld\NetWorld\bin\Debug\NetWorld.exe
 F:\GitHub\NetWorld\NetWorld\bin\Debug\NetWorld.pdb
 F:\GitHub\NetWorld\NetWorld\obj\Debug\NetWorld.exe
 F:\GitHub\NetWorld\NetWorld\obj\Debug\NetWorld.pdb
+H:\GitHub\NetWorld\NetWorld\bin\Debug\NetWorld.exe
+H:\GitHub\NetWorld\NetWorld\bin\Debug\NetWorld.pdb
+H:\GitHub\NetWorld\NetWorld\obj\Debug\NetWorld.exe
+H:\GitHub\NetWorld\NetWorld\obj\Debug\NetWorld.pdb
+H:\GitHub\NetWorld\NetWorld\obj\Debug\NetWorld.csprojResolveAssemblyReference.cache
