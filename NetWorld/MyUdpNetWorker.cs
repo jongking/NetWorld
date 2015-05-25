@@ -87,7 +87,7 @@ namespace NetWorld
             switch (method)
             {
                 case BaseProtocol.HeartBeat:
-                    OnHeartBeat(remote, socket);
+                    OnHeartBeat(param, remote, socket);
                     break;
                 case BaseProtocol.TryConnect:
                     Thread.Sleep(100);
@@ -192,18 +192,18 @@ namespace NetWorld
             return false;
         }
 
-        private void OnHeartBeat(EndPoint remote, UdpNetWorker.SocketWrap socket)
+        private void OnHeartBeat(string param, EndPoint remote, SocketWrap socket)
         {
-            if (Clientsockets.ContainsKey(remote.ToString()))
+            if (Clientsockets.ContainsKey(param))
             {
-                Clientsockets[remote.ToString()].UpdataTime();
+                Clientsockets[param].UpdataTime();
             }
             else
             {
-                var nc = new NetClient(remote.ToString(), socket);
-                Clientsockets.Add(remote.ToString(), nc);
+                var nc = new NetClient(remote, socket);
+                Clientsockets.Add(param, nc);
+                Console.WriteLine(param + " 上线了");
             }
-            Console.WriteLine(Clientsockets.Count);
         }
 
         public static void DebugW(string msg)
@@ -277,21 +277,27 @@ namespace NetWorld
                 Socket.SendTo(cacheBuffer, cacheBuffer.Length, SocketFlags.None, remote);
             }
 
+            public void SendTo(string message, string ip, int port)
+            {
+                var to = new IPEndPoint(IPAddress.Parse(ip), port);
+                SendTo(message, to);
+            }
+
             public void SendTo(string protocol, string param, string ip, int port)
             {
                 var to = new IPEndPoint(IPAddress.Parse(ip), port);
-                SendTo(protocol, to);
+                SendTo(protocol + ":" + param, to);
             }
         }
 
         //代表连接进来的客户
         public class NetClient
         {
-            public string IpAddress;//用来做key
+            public EndPoint IpAddress;//用来做key
             public UdpNetWorker.SocketWrap Socket;
             private DateTime _dateTime = DateTime.Now;
 
-            public NetClient(string ipAddress, UdpNetWorker.SocketWrap socket)
+            public NetClient(EndPoint ipAddress, UdpNetWorker.SocketWrap socket)
             {
                 Socket = socket;
                 this.IpAddress = ipAddress;

@@ -17,6 +17,11 @@ namespace NetWorld
     {
         public string Ip;
         public int Port;
+
+        public override string ToString()
+        {
+            return Ip + ":" + Port;
+        }
     }
 
     class Program
@@ -38,11 +43,11 @@ namespace NetWorld
             else
             {
                 //设置默认的服务器列表
-                ServerIpList.Add(new Ipv4Adress() { Ip = "115.28.65.48", Port = mainRecPort });
+                ServerIpList.Add(new Ipv4Adress() { Ip = "121.40.208.105", Port = mainRecPort });
                 jdb.Insert("serverIpList", ServerIpList);
             }
 
-            UdpNetWorker.Debug = true;
+            UdpNetWorker.Debug = false;
 
             var nw = new UdpNetWorker(new UdpNetWorkerProcessor(jdb));
 
@@ -59,7 +64,14 @@ namespace NetWorld
                 if (nw.TryConnect(tryConnectPort, ipv4Adress.Ip, ipv4Adress.Port, 1))
                 {
                     //连接并且不断发送心跳包到第一个连接上的'服务器'
-                    nw.CreateSendWorker(mainRecPort, ipv4Adress.Ip, ipv4Adress.Port, UdpNetWorker.BaseProtocol.HeartBeat);
+                    nw.CreateSendWorker(mainRecPort, ipv4Adress.Ip, ipv4Adress.Port, UdpNetWorker.BaseProtocol.HeartBeat + ":" + Guid.NewGuid());
+
+                    while (true)
+                    {
+                        var cmd = Console.ReadLine();
+                        var swp = nw.CreateSocketWrap(mainRecPort);
+                        swp.SendTo(cmd, ipv4Adress.Ip, ipv4Adress.Port);
+                    }
                     break;
                 }
             }
