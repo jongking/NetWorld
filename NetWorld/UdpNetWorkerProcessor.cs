@@ -13,7 +13,6 @@ namespace NetWorld
     public class UdpNetWorkerProcessor : UdpNetWorker.IUdpNetWorkerProcessor
     {
         public JsonDb Jdb;
-        public readonly Dictionary<string, NetClient> Clientsockets = new Dictionary<string, NetClient>();
 
         public UdpNetWorkerProcessor(JsonDb jdb)
         {
@@ -24,25 +23,9 @@ namespace NetWorld
         {
             switch (method)
             {
-                case Protocol.HeartBeat:
-                    OnHeartBeat(remote, socket);
-                    break;
+
             }
             return 0;
-        }
-
-        private void OnHeartBeat(EndPoint remote, UdpNetWorker.SocketWrap socket)
-        {
-            if (Clientsockets.ContainsKey(remote.ToString()))
-            {
-                Clientsockets[remote.ToString()].UpdataTime();
-            }
-            else
-            {
-                var nc = new NetClient(remote.ToString(), socket);
-                Clientsockets.Add(remote.ToString(), nc);
-            }
-            Console.WriteLine(Clientsockets.Count);
         }
 
         public int ClientProcessor(string method, string param, EndPoint remote, UdpNetWorker.SocketWrap socket, UdpNetWorker udpNetWorker)
@@ -63,28 +46,9 @@ namespace NetWorld
             return 0;
         }
 
-        //代表连接进来的客户
-        public class NetClient
+        public class MyProtocol : UdpNetWorker.BaseProtocol
         {
-            public string IpAddress;//用来做key
-            public UdpNetWorker.SocketWrap Socket;
-            private DateTime _dateTime = DateTime.Now;
-
-            public NetClient(string ipAddress, UdpNetWorker.SocketWrap socket)
-            {
-                Socket = socket;
-                this.IpAddress = ipAddress;
-            }
-
-            public void UpdataTime()
-            {
-                _dateTime = DateTime.Now;
-            }
-
-            public bool IsTimeOut()
-            {
-                return _dateTime.AddSeconds(5) <= DateTime.Now;//超出5秒就是超时了
-            }
+             
         }
     }
 }

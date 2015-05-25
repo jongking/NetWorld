@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using JHelper;
 
 namespace NetWorld
 {
@@ -12,6 +13,7 @@ namespace NetWorld
     {
         private readonly IUdpNetWorkerProcessor _iWorkerProcessor;
         private readonly Dictionary<int, SocketWrap> _sockets = new Dictionary<int, SocketWrap>();
+        public readonly Dictionary<string, NetClient> Clientsockets = new Dictionary<string, NetClient>();
 
         public static bool Debug = false;
 
@@ -84,14 +86,25 @@ namespace NetWorld
             if (_iWorkerProcessor.ClientProcessor(method, param, remote, socket, this) == -1) return -1;
             switch (method)
             {
-                case "TryConnect":
-                    Thread.Sleep(100);
-                    socket.SendTo("TryConnectOK", remote);
+                case BaseProtocol.HeartBeat:
+                    OnHeartBeat(remote, socket);
                     break;
-                case "quit":
+                case BaseProtocol.TryConnect:
+                    Thread.Sleep(100);
+                    socket.SendTo(BaseProtocol.TryConnectOK, remote);
+                    break;
+                case BaseProtocol.RPC:
+                    OnRPC(param);
+                    break;
+                case BaseProtocol.Quit:
                     return -1;
             }
             return 0;
+        }
+
+        private void OnRPC(string param)
+        {
+            DebugW("还没实现RPC");
         }
 
         public void CreateSendWorker(int fromport, string ip, int port, string sendmessage, int timeTicker = 1000)
@@ -153,7 +166,7 @@ namespace NetWorld
 
         public bool TryConnect(int fromport, string ip, int port, int timeout = 3000)
         {
-            string sendmessage = string.Format("TryConnect:{0}", fromport.ToString());
+            string sendmessage = string.Format("{1}:{0}", fromport.ToString(), BaseProtocol.TryConnect);
 
             var from = CreateSocketWrap(fromport);
 
@@ -167,7 +180,7 @@ namespace NetWorld
             try
             {
                 IPEndPoint recEndpoint = (IPEndPoint) @from.ReceiveFrom(ref message);
-                if (recEndpoint.Address.ToString() == ip && message == "TryConnectOK")
+                if (recEndpoint.Address.ToString() == ip && message == BaseProtocol.TryConnectOK)
                 {
                     return true;
                 }
@@ -179,10 +192,25 @@ namespace NetWorld
             return false;
         }
 
-        private static void DebugW(string msg)
+        private void OnHeartBeat(EndPoint remote, UdpNetWorker.SocketWrap socket)
+        {
+            if (Clientsockets.ContainsKey(remote.ToString()))
+            {
+                Clientsockets[remote.ToString()].UpdataTime();
+            }
+            else
+            {
+                var nc = new NetClient(remote.ToString(), socket);
+                Clientsockets.Add(remote.ToString(), nc);
+            }
+            Console.WriteLine(Clientsockets.Count);
+        }
+
+        public static void DebugW(string msg)
         {
             if (Debug) Console.WriteLine(msg);
         }
+
         public class SendWorkerParams
         {
             public SocketWrap From;
@@ -248,6 +276,45 @@ namespace NetWorld
                 //发送信息
                 Socket.SendTo(cacheBuffer, cacheBuffer.Length, SocketFlags.None, remote);
             }
+
+            public void SendTo(string protocol, string param, string ip, int port)
+            {
+                var to = new IPEndPoint(IPAddress.Parse(ip), port);
+                SendTo(protocol, to);
+            }
+        }
+
+        //代表连接进来的客户
+        public class NetClient
+        {
+            public string IpAddress;//用来做key
+            public UdpNetWorker.SocketWrap Socket;
+            private DateTime _dateTime = DateTime.Now;
+
+            public NetClient(string ipAddress, UdpNetWorker.SocketWrap socket)
+            {
+                Socket = socket;
+                this.IpAddress = ipAddress;
+            }
+
+            public void UpdataTime()
+            {
+                _dateTime = DateTime.Now;
+            }
+
+            public bool IsTimeOut()
+            {
+                return _dateTime.AddSeconds(5) <= DateTime.Now;//超出5秒就是超时了
+            }
+        }
+
+        public class BaseProtocol
+        {
+            public const string Quit = "0";//退出
+            public const string HeartBeat = "1";//心跳包
+            public const string TryConnect = "2";//试连接
+            public const string TryConnectOK = "3";//试连接成功
+            public const string RPC = "4";//远程过程调用
         }
 
         public interface IUdpNetWorkerProcessor

@@ -5,10 +5,6 @@ using System.Threading;
 
 namespace NetWorld
 {
-    public static class Protocol
-    {
-        public const string HeartBeat = "0";//心跳包
-    }
     public class Log
     {
         public static void Write(string msg)
@@ -29,7 +25,12 @@ namespace NetWorld
 
         static void Main(string[] args)
         {
-            JsonDb jdb = new JsonDb(@"C:\log");
+            //端口配置
+            const int mainRecPort = 10000;
+            const int tryConnectPort = 9998;
+            //数据库配置
+            var jdb = new JsonDb(@"C:\log");
+
             if (jdb.Exists("serverIpList"))
             {
                 ServerIpList = jdb.Select<List<Ipv4Adress>>("serverIpList");
@@ -37,7 +38,7 @@ namespace NetWorld
             else
             {
                 //设置默认的服务器列表
-                ServerIpList.Add(new Ipv4Adress() { Ip = "115.28.129.244", Port = 10000 });
+                ServerIpList.Add(new Ipv4Adress() { Ip = "115.28.65.48", Port = mainRecPort });
                 jdb.Insert("serverIpList", ServerIpList);
             }
 
@@ -45,7 +46,7 @@ namespace NetWorld
 
             var nw = new UdpNetWorker(new UdpNetWorkerProcessor(jdb));
 
-            nw.CreateReceWorker(10000);
+            nw.CreateReceWorker(mainRecPort);
 
             //每秒发送一个连接信息给'服务器'
             foreach (var ipv4Adress in ServerIpList)
@@ -55,10 +56,10 @@ namespace NetWorld
                 if (ips.Contains(ipv4Adress.Ip)) continue;
 
                 //尝试连接到'服务器'
-                if (nw.TryConnect(9999, ipv4Adress.Ip, ipv4Adress.Port, 1))
+                if (nw.TryConnect(tryConnectPort, ipv4Adress.Ip, ipv4Adress.Port, 1))
                 {
                     //连接并且不断发送心跳包到第一个连接上的'服务器'
-                    nw.CreateSendWorker(10000, ipv4Adress.Ip, ipv4Adress.Port, Protocol.HeartBeat);
+                    nw.CreateSendWorker(mainRecPort, ipv4Adress.Ip, ipv4Adress.Port, UdpNetWorker.BaseProtocol.HeartBeat);
                     break;
                 }
             }
