@@ -48,6 +48,7 @@ namespace NetWorld
 
         public class MyProtocol : UdpNetWorker.BaseProtocol
         {
+            public const string NatStart = "200";//Nat连接开始
              
         }
     }

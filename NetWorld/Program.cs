@@ -47,6 +47,18 @@ namespace NetWorld
                 jdb.Insert("serverIpList", ServerIpList);
             }
 
+            //设置guid
+            var guid = "";
+            if (jdb.Exists("clientGuid"))
+            {
+                guid = jdb.Select<string>("clientGuid");
+            }
+            else
+            {
+                guid = Guid.NewGuid().ToString();
+                jdb.Insert("clientGuid", guid);
+            }
+
             UdpNetWorker.Debug = false;
 
             var nw = new UdpNetWorker(new UdpNetWorkerProcessor(jdb));
@@ -64,7 +76,7 @@ namespace NetWorld
                 if (nw.TryConnect(tryConnectPort, ipv4Adress.Ip, ipv4Adress.Port, 1))
                 {
                     //连接并且不断发送心跳包到第一个连接上的'服务器'
-                    nw.CreateSendWorker(mainRecPort, ipv4Adress.Ip, ipv4Adress.Port, UdpNetWorker.BaseProtocol.HeartBeat + ":" + Guid.NewGuid());
+                    nw.CreateSendWorker(mainRecPort, ipv4Adress.Ip, ipv4Adress.Port, UdpNetWorker.BaseProtocol.HeartBeat + ":" + guid);
 
                     while (true)
                     {
